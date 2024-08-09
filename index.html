@@ -19,15 +19,19 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(renderer.domElement);
 
-        // Ground plane
-        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        // Ground plane with terrain
+        const groundGeometry = new THREE.PlaneGeometry(100, 100, 32, 32);
         const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
+        groundGeometry.verticesNeedUpdate = true;
+        for (let i = 0; i < groundGeometry.vertices.length; i++) {
+            groundGeometry.vertices[i].z = Math.random() * 2; // Simple terrain
+        }
         scene.add(ground);
 
-        // Player (a complex object)
-        const playerGeometry = new THREE.CylinderGeometry(0.5, 0.5, 2, 32);
+        // Player (a more detailed object)
+        const playerGeometry = new THREE.ConeGeometry(0.5, 2, 32);
         const playerMaterial = new THREE.MeshStandardMaterial({ color: 0x0000ff });
         const player = new THREE.Mesh(playerGeometry, playerMaterial);
         player.position.y = 1;
@@ -44,6 +48,12 @@
         wall2.position.set(-5, 1, -10);
         scene.add(wall2);
 
+        // Skybox
+        const skyboxGeometry = new THREE.BoxGeometry(1000, 1000, 1000);
+        const skyboxMaterial = new THREE.MeshBasicMaterial({ color: 0x87ceeb, side: THREE.BackSide });
+        const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
+        scene.add(skybox);
+
         // Lighting
         const light = new THREE.DirectionalLight(0xffffff, 1);
         light.position.set(10, 10, 10).normalize();
@@ -56,10 +66,63 @@
         camera.position.set(0, 5, 10);
         camera.lookAt(0, 0, 0);
 
-        // Player movement
+        // Add trees to the environment
+        function createTree(x, z) {
+            const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.2, 1, 32);
+            const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
+            trunk.position.set(x, 0.5, z);
+            scene.add(trunk);
+
+            const foliageGeometry = new THREE.SphereGeometry(0.8, 32, 32);
+            const foliageMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
+            const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
+            foliage.position.set(x, 1.5, z);
+            scene.add(foliage);
+        }
+
+        // Create multiple trees
+        for (let i = 0; i < 10; i++) {
+            createTree(Math.random() * 40 - 20, Math.random() * 40 - 20);
+        }
+
+        // Add water body (simple blue plane)
+        const waterGeometry = new THREE.PlaneGeometry(20, 20);
+        const waterMaterial = new THREE.MeshStandardMaterial({ color: 0x1E90FF });
+        const water = new THREE.Mesh(waterGeometry, waterMaterial);
+        water.rotation.x = -Math.PI / 2;
+        water.position.set(-15, 0.1, 15);
+        scene.add(water);
+
+        // Add collectible items (simple spheres)
+        const collectibles = [];
+        function createCollectible(x, z) {
+            const collectibleGeometry = new THREE.SphereGeometry(0.3, 32, 32);
+            const collectibleMaterial = new THREE.MeshStandardMaterial({ color: 0xffff00 });
+            const collectible = new THREE.Mesh(collectibleGeometry, collectibleMaterial);
+            collectible.position.set(x, 0.3, z);
+            scene.add(collectible);
+            collectibles.push(collectible);
+        }
+
+        for (let i = 0; i < 5; i++) {
+            createCollectible(Math.random() * 40 - 20, Math.random() * 40 - 20);
+        }
+
+        // Player movement and collision detection
         const keys = {};
         document.addEventListener('keydown', (event) => { keys[event.key] = true; });
         document.addEventListener('keyup', (event) => { keys[event.key] = false; });
+
+        function checkCollision(player, wall) {
+            const distance = player.position.distanceTo(wall.position);
+            return distance < 1.5;
+        }
+
+        function checkCollectibleCollision(player, collectible) {
+            const distance = player.position.distanceTo(collectible.position);
+            return distance < 1;
+        }
 
         function animate() {
             requestAnimationFrame(animate);
@@ -68,6 +131,19 @@
             if (keys['ArrowDown']) player.position.z += 0.1;
             if (keys['ArrowLeft']) player.position.x -= 0.1;
             if (keys['ArrowRight']) player.position.x += 0.1;
+
+            // Collision detection with walls
+            if (checkCollision(player, wall1) || checkCollision(player, wall2)) {
+                player.position.z += 0.1; // Simple collision response
+            }
+
+            // Collecting items
+            collectibles.forEach((collectible, index) => {
+                if (checkCollectibleCollision(player, collectible)) {
+                    scene.remove(collectible); // Remove collectible from scene
+                    collectibles.splice(index, 1); // Remove from array
+                }
+            });
 
             renderer.render(scene, camera);
         }
