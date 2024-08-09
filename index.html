@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Adventure Game</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Ground plane
+        const groundGeometry = new THREE.PlaneGeometry(100, 100);
+        const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        scene.add(ground);
+
+        // Player (a complex object)
+        const playerGeometry = new THREE.CylinderGeometry(0.5, 0.5, 2, 32);
+        const playerMaterial = new THREE.MeshStandardMaterial({ color: 0x0000ff });
+        const player = new THREE.Mesh(playerGeometry, playerMaterial);
+        player.position.y = 1;
+        scene.add(player);
+
+        // Additional environment elements
+        const wallGeometry = new THREE.BoxGeometry(10, 2, 1);
+        const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+        const wall1 = new THREE.Mesh(wallGeometry, wallMaterial);
+        wall1.position.set(5, 1, -10);
+        scene.add(wall1);
+
+        const wall2 = new THREE.Mesh(wallGeometry, wallMaterial);
+        wall2.position.set(-5, 1, -10);
+        scene.add(wall2);
+
+        // Lighting
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(10, 10, 10).normalize();
+        scene.add(light);
+
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.5); // Soft light
+        scene.add(ambientLight);
+
+        // Camera position
+        camera.position.set(0, 5, 10);
+        camera.lookAt(0, 0, 0);
+
+        // Player movement
+        const keys = {};
+        document.addEventListener('keydown', (event) => { keys[event.key] = true; });
+        document.addEventListener('keyup', (event) => { keys[event.key] = false; });
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (keys['ArrowUp']) player.position.z -= 0.1;
+            if (keys['ArrowDown']) player.position.z += 0.1;
+            if (keys['ArrowLeft']) player.position.x -= 0.1;
+            if (keys['ArrowRight']) player.position.x += 0.1;
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
