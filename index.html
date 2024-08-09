@@ -5,239 +5,308 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D Adventure Game</title>
     <style>
-        body { margin: 0; overflow: hidden; }
+        body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
         canvas { display: block; }
-        #ui { position: absolute; top: 10px; left: 10px; color: white; font-family: Arial, sans-serif; }
-        #restart { display: none; }
+        #gameUI {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #fff;
+            font-size: 18px;
+            z-index: 1;
+        }
+        #startScreen, #gameOverScreen, #levelUpScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            text-align: center;
+            z-index: 2;
+        }
+        #startScreen button, #gameOverScreen button {
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #00f;
+            border: none;
+            color: #fff;
+            cursor: pointer;
+        }
+        #gameOverScreen button {
+            background-color: #f00;
+        }
+        #levelUpScreen button {
+            background-color: #0f0;
+        }
     </style>
 </head>
 <body>
-    <div id="ui">
-        <div>Score: <span id="score">0</span></div>
-        <div>Health: <span id="health">100</span></div>
-        <div>Level: <span id="level">1</span></div>
-        <div>Game Over: <span id="game-over">No</span></div>
-        <button id="restart">Restart</button>
+    <div id="startScreen">
+        <div>
+            <h1>Welcome to the 3D Adventure Game</h1>
+            <button onclick="startGame()">Start Game</button>
+        </div>
+    </div>
+    <div id="gameOverScreen" style="display: none;">
+        <div>
+            <h1>Game Over</h1>
+            <p id="finalScore">Your Score: 0</p>
+            <button onclick="restartGame()">Restart</button>
+        </div>
+    </div>
+    <div id="levelUpScreen" style="display: none;">
+        <div>
+            <h1>Level Up!</h1>
+            <button onclick="hideLevelUp()">Continue</button>
+        </div>
+    </div>
+    <div id="gameUI">
+        <div id="score">Score: 0</div>
+        <div id="health">Health: 100</div>
+        <div id="level">Level: 1</div>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
+        // Game Variables
+        let scene, camera, renderer, player, ground, collectibleMaterial, enemyMaterial;
+        let collectibles = [], enemies = [];
+        let score = 0, health = 100, level = 1;
+        let gameOver = false, levelUp = false;
+        let jumpSound, collectSound, gameOverSound, levelUpSound;
+        
+        // Game State
+        let keys = {};
+        let playerVelocity = new THREE.Vector3();
+        let canJump = true;
+
         // Scene setup
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        document.body.appendChild(renderer.domElement);
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
 
-        // Ground plane with terrain
-        const groundGeometry = new THREE.PlaneGeometry(100, 100, 32, 32);
-        const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-        ground.rotation.x = -Math.PI / 2;
-        scene.add(ground);
+            // Ground plane
+            const groundGeometry = new THREE.PlaneGeometry(100, 100, 32, 32);
+            const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+            ground = new THREE.Mesh(groundGeometry, groundMaterial);
+            ground.rotation.x = -Math.PI / 2;
+            scene.add(ground);
 
-        // Player (a more detailed object)
-        const playerGeometry = new THREE.ConeGeometry(0.5, 2, 32);
-        const playerMaterial = new THREE.MeshStandardMaterial({ color: 0x0000ff });
-        const player = new THREE.Mesh(playerGeometry, playerMaterial);
-        player.position.y = 1;
-        scene.add(player);
+            // Player
+            const playerGeometry = new THREE.ConeGeometry(0.5, 2, 32);
+            const playerMaterial = new THREE.MeshStandardMaterial({ color: 0x0000ff });
+            player = new THREE.Mesh(playerGeometry, playerMaterial);
+            player.position.y = 1;
+            scene.add(player);
 
-        // Additional environment elements
-        const wallGeometry = new THREE.BoxGeometry(10, 2, 1);
-        const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-        const wall1 = new THREE.Mesh(wallGeometry, wallMaterial);
-        wall1.position.set(5, 1, -10);
-        scene.add(wall1);
+            // Additional environment elements
+            const wallGeometry = new THREE.BoxGeometry(10, 2, 1);
+            const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+            const wall1 = new THREE.Mesh(wallGeometry, wallMaterial);
+            wall1.position.set(5, 1, -10);
+            scene.add(wall1);
 
-        const wall2 = new THREE.Mesh(wallGeometry, wallMaterial);
-        wall2.position.set(-5, 1, -10);
-        scene.add(wall2);
+            const wall2 = new THREE.Mesh(wallGeometry, wallMaterial);
+            wall2.position.set(-5, 1, -10);
+            scene.add(wall2);
 
-        // Skybox
-        const skyboxGeometry = new THREE.BoxGeometry(1000, 1000, 1000);
-        const skyboxMaterial = new THREE.MeshBasicMaterial({ color: 0x87ceeb, side: THREE.BackSide });
-        const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
-        scene.add(skybox);
+            // Skybox
+            const skyboxGeometry = new THREE.BoxGeometry(1000, 1000, 1000);
+            const skyboxMaterial = new THREE.MeshBasicMaterial({ color: 0x87ceeb, side: THREE.BackSide });
+            const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
+            scene.add(skybox);
 
-        // Lighting
-        const light = new THREE.DirectionalLight(0xffffff, 1);
-        light.position.set(10, 10, 10).normalize();
-        scene.add(light);
+            // Lighting
+            const light = new THREE.DirectionalLight(0xffffff, 1);
+            light.position.set(10, 10, 10).normalize();
+            scene.add(light);
 
-        const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
-        scene.add(ambientLight);
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+            scene.add(ambientLight);
 
-        // Camera position
-        camera.position.set(0, 5, 10);
-        camera.lookAt(0, 0, 0);
+            // Camera
+            camera.position.set(0, 5, 10);
+            camera.lookAt(0, 0, 0);
 
-        // Add trees to the environment
-        function createTree(x, z) {
-            const trunkGeometry = new THREE.CylinderGeometry(0.2, 0.2, 1, 32);
-            const trunkMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
-            const trunk = new THREE.Mesh(trunkGeometry, trunkMaterial);
-            trunk.position.set(x, 0.5, z);
-            scene.add(trunk);
+            // Sounds
+            jumpSound = new Audio('jump.mp3');
+            collectSound = new Audio('collect.mp3');
+            gameOverSound = new Audio('gameOver.mp3');
+            levelUpSound = new Audio('levelUp.mp3');
 
-            const foliageGeometry = new THREE.SphereGeometry(0.8, 32, 32);
-            const foliageMaterial = new THREE.MeshStandardMaterial({ color: 0x228B22 });
-            const foliage = new THREE.Mesh(foliageGeometry, foliageMaterial);
-            foliage.position.set(x, 1.5, z);
-            scene.add(foliage);
+            // Event listeners
+            document.addEventListener('keydown', (event) => { keys[event.key] = true; });
+            document.addEventListener('keyup', (event) => { keys[event.key] = false; });
+
+            // Start screen
+            document.getElementById('startScreen').style.display = 'flex';
         }
 
-        // Create multiple trees
-        for (let i = 0; i < 10; i++) {
-            createTree(Math.random() * 40 - 20, Math.random() * 40 - 20);
+        // Start Game
+        function startGame() {
+            document.getElementById('startScreen').style.display = 'none';
+            initGame();
+            animate();
         }
 
-        // Add water body (simple blue plane)
-        const waterGeometry = new THREE.PlaneGeometry(20, 20);
-        const waterMaterial = new THREE.MeshStandardMaterial({ color: 0x1E90FF });
-        const water = new THREE.Mesh(waterGeometry, waterMaterial);
-        water.rotation.x = -Math.PI / 2;
-        water.position.set(-15, 0.1, 15);
-        scene.add(water);
+        // Restart Game
+        function restartGame() {
+            location.reload();
+        }
 
-        // Add collectible items (simple spheres)
-        const collectibles = [];
+        // Hide Level Up Screen
+        function hideLevelUp() {
+            document.getElementById('levelUpScreen').style.display = 'none';
+            initGame();
+        }
+
+        // Initialize Game
+        function initGame() {
+            collectibles = [];
+            enemies = [];
+            score = 0;
+            health = 100;
+            level = 1;
+            gameOver = false;
+            levelUp = false;
+
+            // Create collectibles and enemies
+            for (let i = 0; i < 5; i++) {
+                createCollectible(Math.random() * 40 - 20, Math.random() * 40 - 20);
+            }
+            for (let i = 0; i < 2; i++) {
+                createEnemy(Math.random() * 40 - 20, Math.random() * 40 - 20);
+            }
+        }
+
+        // Create Collectible
         function createCollectible(x, z) {
             const collectibleGeometry = new THREE.SphereGeometry(0.3, 32, 32);
-            const collectibleMaterial = new THREE.MeshStandardMaterial({ color: 0xffff00 });
+            collectibleMaterial = new THREE.MeshStandardMaterial({ color: 0xffff00 });
             const collectible = new THREE.Mesh(collectibleGeometry, collectibleMaterial);
             collectible.position.set(x, 0.3, z);
             scene.add(collectible);
             collectibles.push(collectible);
         }
 
-        for (let i = 0; i < 5; i++) {
-            createCollectible(Math.random() * 40 - 20, Math.random() * 40 - 20);
+        // Create Enemy
+        function createEnemy(x, z) {
+            const enemyGeometry = new THREE.BoxGeometry(1, 1, 1);
+            enemyMaterial = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+            const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
+            enemy.position.set(x, 0.5, z);
+            scene.add(enemy);
+            enemies.push(enemy);
         }
 
-        // Add moving obstacle
-        const obstacleGeometry = new THREE.BoxGeometry(2, 2, 2);
-        const obstacleMaterial = new THREE.MeshStandardMaterial({ color: 0xff8c00 });
-        const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
-        obstacle.position.set(0, 1, 0);
-        scene.add(obstacle);
-
-        // Add moving platform
-        const platformGeometry = new THREE.BoxGeometry(5, 0.5, 5);
-        const platformMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
-        const platform = new THREE.Mesh(platformGeometry, platformMaterial);
-        platform.position.set(0, 0.25, 5);
-        scene.add(platform);
-
-        // Additional sounds
-        const jumpSound = new Audio('https://www.soundjay.com/button/beep-07.wav');
-        const collectSound = new Audio('https://www.soundjay.com/button/button-3.wav');
-        const gameOverSound = new Audio('https://www.soundjay.com/button/beep-07.wav');
-
-        // Player mechanics
-        const playerVelocity = new THREE.Vector3();
-        const gravity = -0.01;
-        let canJump = true;
-
-        // UI update
-        function updateUI() {
-            document.getElementById('score').textContent = score;
-            document.getElementById('health').textContent = health;
-            document.getElementById('level').textContent = level;
-            document.getElementById('game-over').textContent = gameOver ? 'Yes' : 'No';
-            document.getElementById('restart').style.display = gameOver ? 'block' : 'none';
-        }
-
-        // Restart game
-        document.getElementById('restart').addEventListener('click', () => {
-            location.reload();
-        });
-
-        // Player movement and collision detection
-        const keys = {};
-        document.addEventListener('keydown', (event) => { keys[event.key] = true; });
-        document.addEventListener('keyup', (event) => { keys[event.key] = false; });
-
-        function checkCollision(player, wall) {
-            const distance = player.position.distanceTo(wall.position);
+        // Check Collision
+        function checkCollision(player, object) {
+            const distance = player.position.distanceTo(object.position);
             return distance < 1.5;
         }
 
+        // Check Collectible Collision
         function checkCollectibleCollision(player, collectible) {
             const distance = player.position.distanceTo(collectible.position);
             return distance < 1;
         }
 
-        function animateObstacle() {
-            obstacle.position.x += 0.1;
-            if (obstacle.position.x > 10) {
-                obstacle.position.x = -10;
+        // Check Enemy Collision
+        function checkEnemyCollision(player, enemy) {
+            const distance = player.position.distanceTo(enemy.position);
+            return distance < 1.5;
+        }
+
+        // Animate Enemies
+        function animateEnemies() {
+            enemies.forEach(enemy => {
+                enemy.position.x += Math.sin(Date.now() * 0.001) * 0.05;
+            });
+        }
+
+        // Update UI
+        function updateUI() {
+            document.getElementById('score').innerText = `Score: ${score}`;
+            document.getElementById('health').innerText = `Health: ${health}`;
+            document.getElementById('level').innerText = `Level: ${level}`;
+
+            if (gameOver) {
+                document.getElementById('gameOverScreen').style.display = 'flex';
+                document.getElementById('finalScore').innerText = `Your Score: ${score}`;
+            }
+            if (levelUp) {
+                document.getElementById('levelUpScreen').style.display = 'flex';
             }
         }
 
-        function animatePlatform() {
-            platform.position.z += 0.1;
-            if (platform.position.z > 15) {
-                platform.position.z = -15;
+        // Game Update Loop
+        function update() {
+            if (keys['w']) player.position.z -= 0.1;
+            if (keys['s']) player.position.z += 0.1;
+            if (keys['a']) player.position.x -= 0.1;
+            if (keys['d']) player.position.x += 0.1;
+            if (keys[' ']) {
+                if (canJump) {
+                    playerVelocity.y = 0.5;
+                    jumpSound.play();
+                    canJump = false;
+                }
             }
-        }
 
-        function animate() {
-            requestAnimationFrame(animate);
-
-            if (gameOver) return;
-
-            if (keys['ArrowUp']) player.position.z -= 0.1;
-            if (keys['ArrowDown']) player.position.z += 0.1;
-            if (keys['ArrowLeft']) player.position.x -= 0.1;
-            if (keys['ArrowRight']) player.position.x += 0.1;
-
-            // Gravity effect
-            playerVelocity.y += gravity;
+            // Gravity
+            playerVelocity.y -= 0.02;
             player.position.y += playerVelocity.y;
-            if (player.position.y <= 1) {
-                player.position.y = 1;
-                playerVelocity.y = 0;
-                canJump = true;
-            }
 
-            // Collision detection with walls
-            if (checkCollision(player, wall1) || checkCollision(player, wall2)) {
-                player.position.z += 0.1; // Simple collision response
-            }
-
-            // Collecting items
+            // Collision detection
             collectibles.forEach((collectible, index) => {
                 if (checkCollectibleCollision(player, collectible)) {
-                    scene.remove(collectible); // Remove collectible from scene
-                    collectibles.splice(index, 1); // Remove from array
+                    scene.remove(collectible);
+                    collectibles.splice(index, 1);
                     score += 10;
                     collectSound.play();
                 }
             });
 
-            // Animate the obstacle and platform
-            animateObstacle();
-            animatePlatform();
+            enemies.forEach((enemy) => {
+                if (checkEnemyCollision(player, enemy)) {
+                    health -= 10;
+                    gameOverSound.play();
+                    if (health <= 0) {
+                        gameOver = true;
+                    }
+                }
+            });
 
-            // Check game over condition
-            if (health <= 0) {
-                gameOver = true;
-                gameOverSound.play();
+            if (collectibles.length === 0) {
+                levelUp = true;
+                levelUpSound.play();
+                level += 1;
+                setTimeout(() => {
+                    hideLevelUp();
+                }, 2000);
             }
 
-            // Update UI
             updateUI();
+        }
 
+        // Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            update();
+            animateEnemies();
             renderer.render(scene, camera);
         }
 
-        // Initialize game state
-        let score = 0;
-        let health = 100;
-        let level = 1;
-        let gameOver = false;
-
-        animate();
+        // Initialize
+        init();
     </script>
 </body>
 </html>
