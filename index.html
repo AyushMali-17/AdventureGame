@@ -7,9 +7,14 @@
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
+        #info { position: absolute; top: 10px; left: 10px; color: white; font-family: Arial, sans-serif; }
     </style>
 </head>
 <body>
+    <div id="info">
+        <p>Score: <span id="score">0</span></p>
+        <p>Game Over: <span id="game-over">No</span></p>
+    </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
         // Scene setup
@@ -24,10 +29,6 @@
         const groundMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;
-        groundGeometry.verticesNeedUpdate = true;
-        for (let i = 0; i < groundGeometry.vertices.length; i++) {
-            groundGeometry.vertices[i].z = Math.random() * 2; // Simple terrain
-        }
         scene.add(ground);
 
         // Player (a more detailed object)
@@ -109,19 +110,96 @@
             createCollectible(Math.random() * 40 - 20, Math.random() * 40 - 20);
         }
 
+        // Add moving obstacle
+        const obstacleGeometry = new THREE.BoxGeometry(2, 2, 2);
+        const obstacleMaterial = new THREE.MeshStandardMaterial({ color: 0xff8c00 });
+        const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
+        obstacle.position.set(0, 1, 0);
+        scene.add(obstacle);
+
+        // Add more obstacles
+        function createObstacle(x, y, z) {
+            const geometry = new THREE.BoxGeometry(2, 2, 2);
+            const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+            const newObstacle = new THREE.Mesh(geometry, material);
+            newObstacle.position.set(x, y, z);
+            scene.add(newObstacle);
+            return newObstacle;
+        }
+
+        const obstacles = [];
+        for (let i = 0; i < 3; i++) {
+            obstacles.push(createObstacle(Math.random() * 40 - 20, 1, Math.random() * 40 - 20));
+        }
+
+        // Add animated clouds
+        function createCloud(x, y, z) {
+            const cloudGeometry = new THREE.SphereGeometry(1.5, 32, 32);
+            const cloudMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+            const cloud = new THREE.Mesh(cloudGeometry, cloudMaterial);
+            cloud.position.set(x, y, z);
+            scene.add(cloud);
+            return cloud;
+        }
+
+        const clouds = [];
+        for (let i = 0; i < 5; i++) {
+            clouds.push(createCloud(Math.random() * 100 - 50, 10, Math.random() * 100 - 50));
+        }
+
+        // Add interactive UI elements
+        let score = 0;
+        const scoreElement = document.getElementById('score');
+        const gameOverElement = document.getElementById('game-over');
+
         // Player movement and collision detection
         const keys = {};
         document.addEventListener('keydown', (event) => { keys[event.key] = true; });
         document.addEventListener('keyup', (event) => { keys[event.key] = false; });
 
-        function checkCollision(player, wall) {
-            const distance = player.position.distanceTo(wall.position);
+        function checkCollision(player, obj) {
+            const distance = player.position.distanceTo(obj.position);
             return distance < 1.5;
         }
 
         function checkCollectibleCollision(player, collectible) {
             const distance = player.position.distanceTo(collectible.position);
             return distance < 1;
+        }
+
+        function animateObstacle() {
+            obstacle.position.x += 0.1;
+            if (obstacle.position.x > 10) {
+                obstacle.position.x = -10;
+            }
+        }
+
+        function animateClouds() {
+            clouds.forEach(cloud => {
+                cloud.position.x += 0.05;
+                if (cloud.position.x > 50) {
+                    cloud.position.x = -50;
+                }
+            });
+        }
+
+        function animateObstacles() {
+            obstacles.forEach(obstacle => {
+                obstacle.position.z += 0.05;
+                if (obstacle.position.z > 20) {
+                    obstacle.position.z = -20;
+                }
+            });
+        }
+
+        function updateScore() {
+            scoreElement.textContent = score;
+        }
+
+        function endGame() {
+            gameOverElement.textContent = 'Yes';
+            document.removeEventListener('keydown', movePlayer);
+            document.removeEventListener('keyup', stopPlayer);
         }
 
         function animate() {
@@ -142,6 +220,22 @@
                 if (checkCollectibleCollision(player, collectible)) {
                     scene.remove(collectible); // Remove collectible from scene
                     collectibles.splice(index, 1); // Remove from array
+                    score += 10;
+                    updateScore();
+                }
+            });
+
+            // Animate the obstacle
+            animateObstacle();
+
+            // Animate clouds and additional obstacles
+            animateClouds();
+            animateObstacles();
+
+            // Check collision with obstacles
+            obstacles.forEach(obstacle => {
+                if (checkCollision(player, obstacle)) {
+                    endGame();
                 }
             });
 
