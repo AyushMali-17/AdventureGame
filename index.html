@@ -179,10 +179,10 @@
             levelUp = false;
 
             // Create collectibles and enemies
-            for (let i = 0; i < 5; i++) {
+            for (let i = 0; i < 10; i++) { // Increased number of collectibles
                 createCollectible(Math.random() * 40 - 20, Math.random() * 40 - 20);
             }
-            for (let i = 0; i < 2; i++) {
+            for (let i = 0; i < 5; i++) { // Increased number of enemies
                 createEnemy(Math.random() * 40 - 20, Math.random() * 40 - 20);
             }
         }
@@ -228,84 +228,91 @@
         // Animate Enemies
         function animateEnemies() {
             enemies.forEach(enemy => {
-                enemy.position.x += Math.sin(Date.now() * 0.001) * 0.05;
+                enemy.position.x += Math.sin(Date.now() * 0.005) * 0.1; // Increased speed
+                enemy.position.z += Math.cos(Date.now() * 0.005) * 0.1; // Increased speed
             });
         }
 
         // Update UI
         function updateUI() {
-            document.getElementById('score').innerText = `Score: ${score}`;
-            document.getElementById('health').innerText = `Health: ${health}`;
-            document.getElementById('level').innerText = `Level: ${level}`;
-
-            if (gameOver) {
-                document.getElementById('gameOverScreen').style.display = 'flex';
-                document.getElementById('finalScore').innerText = `Your Score: ${score}`;
-            }
-            if (levelUp) {
-                document.getElementById('levelUpScreen').style.display = 'flex';
-            }
+            document.getElementById('score').textContent = `Score: ${score}`;
+            document.getElementById('health').textContent = `Health: ${health}`;
+            document.getElementById('level').textContent = `Level: ${level}`;
         }
 
-        // Game Update Loop
-        function update() {
-            if (keys['w']) player.position.z -= 0.1;
-            if (keys['s']) player.position.z += 0.1;
-            if (keys['a']) player.position.x -= 0.1;
-            if (keys['d']) player.position.x += 0.1;
-            if (keys[' ']) {
-                if (canJump) {
-                    playerVelocity.y = 0.5;
-                    jumpSound.play();
-                    canJump = false;
-                }
-            }
+        // Game Loop
+        function animate() {
+            if (!gameOver) {
+                requestAnimationFrame(animate);
 
-            // Gravity
-            playerVelocity.y -= 0.02;
-            player.position.y += playerVelocity.y;
-
-            // Collision detection
-            collectibles.forEach((collectible, index) => {
-                if (checkCollectibleCollision(player, collectible)) {
-                    scene.remove(collectible);
-                    collectibles.splice(index, 1);
-                    score += 10;
-                    collectSound.play();
-                }
-            });
-
-            enemies.forEach((enemy) => {
-                if (checkEnemyCollision(player, enemy)) {
-                    health -= 10;
-                    gameOverSound.play();
-                    if (health <= 0) {
-                        gameOver = true;
+                // Player controls
+                if (keys['w']) player.position.z -= 0.1;
+                if (keys['s']) player.position.z += 0.1;
+                if (keys['a']) player.position.x -= 0.1;
+                if (keys['d']) player.position.x += 0.1;
+                if (keys[' ']) {
+                    if (canJump) {
+                        playerVelocity.y = 5;
+                        canJump = false;
+                        jumpSound.play();
                     }
                 }
-            });
 
-            if (collectibles.length === 0) {
-                levelUp = true;
-                levelUpSound.play();
-                level += 1;
-                setTimeout(() => {
-                    hideLevelUp();
-                }, 2000);
+                // Apply gravity
+                playerVelocity.y -= 0.1;
+                player.position.y += playerVelocity.y * 0.1;
+                if (player.position.y < 1) {
+                    player.position.y = 1;
+                    canJump = true;
+                    playerVelocity.y = 0;
+                }
+
+                // Check for collectible collisions
+                collectibles.forEach(collectible => {
+                    if (checkCollectibleCollision(player, collectible)) {
+                        scene.remove(collectible);
+                        collectibles = collectibles.filter(c => c !== collectible);
+                        score += 20; // Increased points for collecting
+                        collectSound.play();
+                        if (collectibles.length === 0) {
+                            levelUp = true;
+                            level++;
+                            levelUpSound.play();
+                            initGame(); // Reinitialize game with more collectibles and enemies
+                        }
+                    }
+                });
+
+                // Check for enemy collisions
+                enemies.forEach(enemy => {
+                    if (checkEnemyCollision(player, enemy)) {
+                        health -= 10;
+                        if (health <= 0) {
+                            gameOver = true;
+                            gameOverSound.play();
+                        }
+                    }
+                });
+
+                // Update UI
+                updateUI();
+
+                // Animate enemies
+                animateEnemies();
+
+                renderer.render(scene, camera);
+            } else {
+                document.getElementById('gameOverScreen').style.display = 'flex';
+                document.getElementById('finalScore').textContent = `Your Score: ${score}`;
             }
 
-            updateUI();
+            if (levelUp) {
+                document.getElementById('levelUpScreen').style.display = 'flex';
+                levelUp = false;
+            }
         }
 
-        // Animation Loop
-        function animate() {
-            requestAnimationFrame(animate);
-            update();
-            animateEnemies();
-            renderer.render(scene, camera);
-        }
-
-        // Initialize
+        // Initialize game
         init();
     </script>
 </body>
